@@ -10,6 +10,18 @@ Outil en ligne de commande pour extraire depuis un PDF la liste des détenus
 
 ## Utilisation
 
+### Interface graphique sans installation supplémentaire
+
+Tkinter est inclus dans la distribution standard de Python. Lancez l'outil
+graphique sans dépendances additionnelles :
+
+```bash
+python -m listedetenus.gui
+```
+
+Choisissez le PDF source et l'emplacement du CSV généré via les boîtes de
+dialogue.
+
 ```bash
 python -m listedetenus.cli chemin/vers/liste.pdf sortie/detenus.csv
 ```

@@ -6,9 +6,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from listedetenus.csv_writer import write_csv
-from listedetenus.pdf_loader import read_pdf_tables
-from listedetenus.parser import tables_to_detainees
+from listedetenus.workflow import convert_pdf_to_csv
 
 LOG_FORMAT = "%(levelname)s | %(message)s"
 LOGGER = logging.getLogger(__name__)
@@ -59,9 +57,7 @@ def main() -> int:
     configure_logging(args.verbose)
 
     try:
-        extraction = read_pdf_tables(args.pdf)
-        detainees = tables_to_detainees(extraction.tables)
-        write_csv(args.csv, detainees)
+        convert_pdf_to_csv(args.pdf, args.csv)
     except Exception as error:  # noqa: BLE001
         LOGGER.error("Échec: %s", error)
         return 1
