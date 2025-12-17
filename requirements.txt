@@ -1,1 +1,1 @@
-pdfplumber>=0.11,<1
+# Aucune dépendance externe n'est nécessaire pour l'exécution.
