@@ -1,4 +1,4 @@
-"""Configuration Pytest pour inclure le dossier src dans le chemin Python."""
+"""Configuration commune pour les tests unitaires."""
 
 from __future__ import annotations
 

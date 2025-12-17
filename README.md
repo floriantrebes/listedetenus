@@ -6,7 +6,7 @@ Outil en ligne de commande pour extraire depuis un PDF la liste des détenus
 ## Prérequis
 
 - Python 3.10 ou supérieur
-- Dépendances installées via `pip install -r requirements.txt`
+- Aucune dépendance externe : la bibliothèque standard suffit.
 
 ## Utilisation
 
@@ -35,9 +35,8 @@ Le fichier CSV généré contient les colonnes `nom`, `prenom` et
 
 ## Tests
 
-Installez les dépendances de développement puis lancez Pytest :
+Les tests reposent uniquement sur la bibliothèque standard :
 
 ```bash
-pip install -r requirements-dev.txt
-pytest
+python -m unittest
 ```

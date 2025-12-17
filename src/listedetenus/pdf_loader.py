@@ -1,4 +1,4 @@
-"""Lecture sécurisée des tableaux depuis un PDF à l'aide de pdfplumber."""
+"""Lecture sécurisée des tableaux depuis un fichier PDF textuel."""
 
 from __future__ import annotations
 
@@ -6,40 +6,35 @@ import logging
 from pathlib import Path
 from typing import Iterable
 
-import pdfplumber
-
-from listedetenus.models import PdfExtractionResult
 from listedetenus.constants import MAX_ROW_FIELDS
+from listedetenus.models import PdfExtractionResult
 
 LOGGER = logging.getLogger(__name__)
 
+LINE_SEPARATORS: list[str] = [";", ",", "\t", "|"]
+FALLBACK_SEPARATOR: str = " "
+MIN_COLUMN_COUNT: int = 2
+
 
 def read_pdf_tables(pdf_path: Path) -> PdfExtractionResult:
-    """Extrait toutes les tables du fichier PDF fourni.
+    """Extrait les tableaux d'un fichier PDF textuel.
 
     Rôle:
-        Ouvrir le PDF, extraire les tableaux et retourner leur contenu nettoyé.
+        Lire le contenu d'un fichier PDF (supposé textuel) et en déduire des
+        tableaux structurés à partir des séparateurs présents dans chaque
+        ligne.
     Entrées:
         pdf_path: chemin du fichier PDF existant.
     Sorties:
         PdfExtractionResult contenant les tableaux sous forme de listes.
     Erreurs:
         ValueError: fichier manquant, extension incorrecte ou aucune table.
-        RuntimeError: échec de l'extraction du PDF.
+        RuntimeError: échec de lecture du fichier.
     """
 
     _validate_pdf_path(pdf_path)
-    tables: list[list[list[str]]] = []
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                page_tables = _extract_page_tables(page.extract_tables())
-                tables.extend(page_tables)
-    except Exception as error:  # noqa: BLE001
-        message = f"Échec de lecture du PDF: {error}."
-        LOGGER.error(message)
-        raise RuntimeError(message) from error
-
+    content = _load_pdf_content(pdf_path)
+    tables = _extract_tables_from_text(content)
     if not tables:
         message = "Aucune table détectée dans le PDF."
         raise ValueError(message)
@@ -58,27 +53,75 @@ def _validate_pdf_path(pdf_path: Path) -> None:
         raise ValueError("Le fichier PDF fourni est introuvable.")
 
 
-def _extract_page_tables(
-    raw_tables: Iterable[list[list[str]]],
-) -> list[list[list[str]]]:
-    """Nettoie et normalise les tableaux extraits d'une page."""
+def _load_pdf_content(pdf_path: Path) -> str:
+    """Lit le fichier en texte en essayant des décodages sûrs."""
 
-    cleaned_tables: list[list[list[str]]] = []
-    for raw_table in raw_tables:
-        cleaned_rows = [_clean_row(row) for row in raw_table if row]
-        if cleaned_rows:
-            cleaned_tables.append(cleaned_rows)
-    return cleaned_tables
+    try:
+        raw_bytes = pdf_path.read_bytes()
+    except Exception as error:  # noqa: BLE001
+        message = f"Impossible de lire le PDF: {error}."
+        LOGGER.error(message)
+        raise RuntimeError(message) from error
+
+    if not raw_bytes:
+        raise ValueError("Le fichier PDF est vide.")
+
+    decoders = ["utf-8", "latin-1"]
+    for decoder in decoders:
+        try:
+            return raw_bytes.decode(decoder)
+        except UnicodeDecodeError:
+            continue
+    return raw_bytes.decode("utf-8", errors="replace")
 
 
-def _clean_row(row: list[str]) -> list[str]:
-    """Normalise une ligne en limitant sa taille et en supprimant les None."""
+def _extract_tables_from_text(text: str) -> list[list[list[str]]]:
+    """Construit des tableaux à partir de lignes textuelles séparées."""
 
-    bounded_row = row[:MAX_ROW_FIELDS]
-    cleaned_cells: list[str] = []
-    for cell in bounded_row:
-        if cell is None:
-            cleaned_cells.append("")
-        else:
-            cleaned_cells.append(cell.strip())
-    return cleaned_cells
+    tables: list[list[list[str]]] = []
+    current_table: list[list[str]] = []
+    for line in _iter_clean_lines(text):
+        if line == "":
+            _append_table_if_not_empty(tables, current_table)
+            current_table = []
+            continue
+        row = _split_row(line)
+        if row:
+            current_table.append(row)
+    _append_table_if_not_empty(tables, current_table)
+    return tables
+
+
+def _iter_clean_lines(text: str) -> Iterable[str]:
+    """Retourne les lignes nettoyées du texte fourni."""
+
+    for raw_line in text.splitlines():
+        yield raw_line.strip()
+
+
+def _append_table_if_not_empty(
+    tables: list[list[list[str]]], table: list[list[str]]
+) -> None:
+    """Ajoute un tableau s'il contient au moins une ligne."""
+
+    if table:
+        tables.append(table)
+
+
+def _split_row(line: str) -> list[str] | None:
+    """Découpe une ligne en cellules en choisissant le meilleur séparateur."""
+
+    separator = _detect_separator(line)
+    cells = [cell.strip() for cell in line.split(separator)]
+    if len(cells) < MIN_COLUMN_COUNT:
+        return None
+    return cells[:MAX_ROW_FIELDS]
+
+
+def _detect_separator(line: str) -> str:
+    """Identifie le séparateur le plus probable pour une ligne."""
+
+    for separator in LINE_SEPARATORS:
+        if separator in line:
+            return separator
+    return FALLBACK_SEPARATOR
