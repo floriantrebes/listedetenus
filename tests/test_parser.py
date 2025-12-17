@@ -72,6 +72,28 @@ class TablesToDetaineesTestCase(unittest.TestCase):
             ],
         )
 
+    def test_tables_to_detainees_detects_headers_below_first_row(self) -> None:
+        tables = [
+            [
+                ["", ""],
+                ["NOM", "Prénom", "Date naissance"],
+                ["ABERKANE", "Yassine", "10/02/1987"],
+            ]
+        ]
+
+        detainees = tables_to_detainees(tables)
+
+        self.assertEqual(
+            detainees,
+            [
+                Detainee(
+                    nom="ABERKANE",
+                    prenom="Yassine",
+                    date_naissance="1987-02-10",
+                )
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

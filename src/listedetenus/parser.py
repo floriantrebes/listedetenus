@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable
 
@@ -12,13 +13,14 @@ from listedetenus.models import Detainee
 LOGGER = logging.getLogger(__name__)
 
 
+@dataclass
 class ColumnMapping:
     """Index des colonnes utiles dans un tableau."""
 
-    def __init__(self, nom: int, prenom: int, date_naissance: int) -> None:
-        self.nom = nom
-        self.prenom = prenom
-        self.date_naissance = date_naissance
+    nom: int
+    prenom: int
+    date_naissance: int
+    header_row_index: int
 
 
 def tables_to_detainees(tables: Iterable[list[list[str]]]) -> list[Detainee]:
@@ -54,22 +56,34 @@ def _find_columns(table: list[list[str]]) -> ColumnMapping | None:
 
     if not table:
         return None
-    header_row = table[0]
+    for row_index, row in enumerate(table):
+        mapping = _match_header_row(row, row_index)
+        if mapping is not None:
+            return mapping
+    return None
+
+
+def _match_header_row(
+    row: list[str], row_index: int
+) -> ColumnMapping | None:
+    """Retourne le mapping si la ligne passée contient les entêtes."""
+
     positions: dict[str, int] = {}
-    for index, cell in enumerate(header_row):
+    for cell_index, cell in enumerate(row):
         lowered = cell.lower()
         for field, keywords in HEADER_KEYWORDS.items():
             if field in positions:
                 continue
             if any(keyword in lowered for keyword in keywords):
-                positions[field] = index
-    if set(positions) == set(CSV_HEADERS):
-        return ColumnMapping(
-            nom=positions["nom"],
-            prenom=positions["prenom"],
-            date_naissance=positions["date_naissance"],
-        )
-    return None
+                positions[field] = cell_index
+    if set(positions) != set(CSV_HEADERS):
+        return None
+    return ColumnMapping(
+        nom=positions["nom"],
+        prenom=positions["prenom"],
+        date_naissance=positions["date_naissance"],
+        header_row_index=row_index,
+    )
 
 
 def _parse_table_rows(
@@ -78,7 +92,8 @@ def _parse_table_rows(
     """Lit les lignes d'un tableau en appliquant la correspondance d'index."""
 
     detainees: list[Detainee] = []
-    for row in table[1:]:
+    start_index = mapping.header_row_index + 1
+    for row in table[start_index:]:
         if not row:
             continue
         detainee = _row_to_detainee(row, mapping)
